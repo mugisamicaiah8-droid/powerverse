@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#08090d">
+<title>My Profile — PowerVerse</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<header class="topbar" id="topbar"></header>
+
+<div class="shell">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main">
+    <!-- profile card -->
+    <div class="card" style="overflow:hidden;margin-bottom:20px">
+      <div class="profile-cover"></div>
+      <div class="profile-head">
+        <div class="row-between" style="align-items:flex-end">
+          <div id="profileAvatar"></div>
+          <div class="row" style="gap:8px;margin-bottom:6px">
+            <button class="btn btn-sm" id="editBtn" type="button"></button>
+            <button class="btn btn-ghost btn-sm" id="settingsBtn" type="button"></button>
+          </div>
+        </div>
+
+        <h2 class="profile-name" id="profileName">—</h2>
+        <div class="profile-handle" id="profileHandle">@—</div>
+        <p class="profile-bio" id="profileBio"></p>
+
+        <div class="stat-row">
+          <div class="stat"><b id="statPosts">0</b><span>Posts</span></div>
+          <div class="stat"><b id="statFollowers">0</b><span>Followers</span></div>
+          <div class="stat"><b id="statFollowing">0</b><span>Following</span></div>
+          <div class="stat"><b id="statLikes">0</b><span>Likes received</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- tabs -->
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-tab="posts">My posts</button>
+      <button class="tab" data-tab="syncs">My syncs</button>
+      <button class="tab" data-tab="followers">Followers</button>
+      <button class="tab" data-tab="following">Following</button>
+    </div>
+
+    <div id="tabContent"></div>
+  </main>
+</div>
+
+<nav class="bottomnav" id="bottomnav"></nav>
+<div id="toasts"></div>
+
+<script src="js/store.js"></script>
+<script src="js/ui.js"></script>
+<script>
+(function () {
+  var S = PV.store, U = PV.ui;
+  var me = U.requireAuth();
+  if (!me) return;
+
+  U.renderNav('my');
+
+  document.getElementById('editBtn').innerHTML = U.icon('edit') + '<span>Edit profile</span>';
+  document.getElementById('settingsBtn').innerHTML = U.icon('settings') + '<span>Settings</span>';
+
+  var activeTab = 'posts';
+
+  /* ---------------- profile header ---------------- */
+  function renderHeader() {
+    var u = S.currentUser();
+    if (!u) return;
+    document.getElementById('profileAvatar').innerHTML = U.avatar(u, 104, true);
+    document.getElementById('profileName').textContent = u.name;
+    document.getElementById('profileHandle').textContent = '@' + u.username;
+    document.getElementById('profileBio').textContent = u.bio || 'No bio yet — tap Edit profile to add one.';
+    document.getElementById('statPosts').textContent = S.postsBy(u.id).length;
+    document.getElementById('statFollowers').textContent = S.followerCount(u.id);
+    document.getElementById('statFollowing').textContent = S.followingCount(u.id);
+    document.getElementById('statLikes').textContent = S.likesReceived(u.id);
+  }
+
+  /* ---------------- tabs ---------------- */
+  function renderTab() {
+    var u = S.currentUser();
+    var host = document.getElementById('tabContent');
+
+    if (activeTab === 'posts') {
+      var posts = S.postsBy(u.id);
+      if (!posts.length) {
+        host.innerHTML = '<div class="empty"><div class="ic">' + U.icon('grid') + '</div>' +
+          '<h4>No posts yet</h4><p>Your posts will show up here as a grid. Head to Home and share something.</p>' +
+          '<a class="btn btn-primary btn-sm" href="home.html" style="margin-top:14px">Go to Home</a></div>';
+        return;
+      }
+      host.innerHTML = '<div class="post-grid">' + posts.map(function (p) {
+        var inner = p.image
+          ? '<img src="' + U.esc(p.image) + '" alt="" loading="lazy">'
+          : '<div class="txt">' + U.esc(p.text || (p.syncRef ? 'Sync: ' + p.syncRef.name : 'Post')) + '</div>';
+        return '<div class="grid-tile" data-post="' + p.id + '">' + inner +
+          '<div class="ov"><span>' + U.icon('heart') + ' ' + p.likes.length + '</span>' +
+          '<span>' + U.icon('comment') + ' ' + p.comments.length + '</span></div></div>';
+      }).join('') + '</div>';
+      return;
+    }
+
+    if (activeTab === 'syncs') {
+      var mine = S.activeSyncs().filter(function (s) { return s.hostId === u.id; });
+      var reposts = S.postsBy(u.id).filter(function (p) { return !!p.syncRef; });
+      var html = '';
+
+      if (mine.length) {
+        html += '<h3 style="font-size:15px;margin:0 0 12px">Live syncs you host</h3>';
+        html += '<div class="room-list" style="margin-bottom:22px">' + mine.map(function (s) {
+          return '<div class="room-row ' + s.type + '">' +
+            '<div class="ic">' + U.icon(s.type === 'music' ? 'music' : s.type === 'video' ? 'video' : 'game') + '</div>' +
+            '<div class="grow"><div class="nm truncate">' + U.esc(s.name) + '</div>' +
+            '<div class="sub">' + s.members.length + ' member' + (s.members.length === 1 ? '' : 's') +
+            ' · code <b style="color:var(--accent);font-family:ui-monospace,Menlo,monospace">' + U.esc(s.code) + '</b></div></div>' +
+            '<a class="btn btn-primary btn-sm" href="' +
+              (s.type === 'music' ? 'music-sync.html' : s.type === 'video' ? 'video-sync.html' : 'game-sync.html') +
+              '?code=' + encodeURIComponent(s.code) + '">Open</a></div>';
+        }).join('') + '</div>';
+      }
+
+      if (reposts.length) {
+        html += '<h3 style="font-size:15px;margin:0 0 12px">Syncs you reposted</h3>';
+        html += reposts.map(function (p) {
+          var live = S.getSync(p.syncRef.id);
+          return '<div class="card panel" style="margin-bottom:10px">' +
+            '<div class="row-between"><div class="grow">' +
+              '<div class="bold" style="font-size:14.5px">' + U.esc(p.syncRef.name) + '</div>' +
+              '<div class="tiny muted" style="margin-top:3px">' + U.timeAgo(p.createdAt) +
+                ' · code <b style="color:var(--accent)">' + U.esc(p.syncRef.code) + '</b></div>' +
+            '</div>' +
+            (live && !live.ended
+              ? '<a class="btn btn-primary btn-sm" href="' +
+                (p.syncRef.type === 'music' ? 'music-sync.html' : 'video-sync.html') +
+                '?code=' + encodeURIComponent(p.syncRef.code) + '">Join</a>'
+              : '<span class="chip">Ended</span>') +
+            '</div></div>';
+        }).join('');
+      }
+
+      if (!html) {
+        html = '<div class="empty"><div class="ic">' + U.icon('rooms') + '</div>' +
+          '<h4>No syncs yet</h4><p>Create a music or video sync and repost it — it will appear here.</p>' +
+          '<a class="btn btn-primary btn-sm" href="rooms.html" style="margin-top:14px">Open Rooms</a></div>';
+      }
+      host.innerHTML = html;
+      return;
+    }
+
+    // followers / following
+    var list = activeTab === 'followers' ? S.followersOf(u.id) : S.followingOf(u.id);
+    if (!list.length) {
+      host.innerHTML = '<div class="empty"><div class="ic">' + U.icon('users') + '</div>' +
+        '<h4>Nobody here yet</h4><p>' +
+        (activeTab === 'followers' ? 'When people follow you, they will show up here.' : 'Follow people from the Home page to fill this list.') +
+        '</p></div>';
+      return;
+    }
+    host.innerHTML = list.map(function (x) {
+      var following = S.isFollowing(u.id, x.id);
+      return '<div class="user-row">' + U.avatar(x, 44, S.isOnline(x)) +
+        '<div class="grow"><div class="bold small truncate">' + U.esc(x.name) + '</div>' +
+        '<div class="tiny muted truncate">@' + U.esc(x.username) + '</div></div>' +
+        '<button class="follow-btn' + (following ? ' following' : '') + '" data-follow="' + x.id + '">' +
+          (following ? 'Following' : 'Follow') + '</button></div>';
+    }).join('');
+  }
+
+  function render() { renderHeader(); renderTab(); }
+
+  /* ---------------- tabs events ---------------- */
+  document.getElementById('tabs').addEventListener('click', function (e) {
+    var tab = e.target.closest('[data-tab]');
+    if (!tab) return;
+    activeTab = tab.dataset.tab;
+    document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('active', t === tab); });
+    renderTab();
+  });
+
+  document.getElementById('tabContent').addEventListener('click', function (e) {
+    var f = e.target.closest('[data-follow]');
+    if (f) {
+      var r = S.toggleFollow(f.dataset.follow);
+      if (!r.ok) U.toast(r.error, 'err');
+      else { U.toast(r.following ? 'Following' : 'Unfollowed'); render(); }
+      return;
+    }
+    var tile = e.target.closest('[data-post]');
+    if (tile) {
+      var p = S.getPost(tile.dataset.post);
+      if (!p) return;
+      U.modal({
+        title: 'Post',
+        sub: U.timeAgo(p.createdAt),
+        okText: 'Close',
+        cancel: false,
+        body: (p.text ? '<p class="post-text">' + U.esc(p.text) + '</p>' : '') +
+          (p.image ? '<div class="post-img"><img src="' + U.esc(p.image) + '" alt=""></div>' : '') +
+          '<div class="row" style="gap:14px;margin-top:10px;font-size:12.5px;color:var(--text-mute)">' +
+            '<span>' + p.likes.length + ' likes</span><span>' + p.comments.length + ' comments</span></div>'
+      });
+    }
+  });
+
+  /* ---------------- edit profile ---------------- */
+  document.getElementById('editBtn').addEventListener('click', function () {
+    var u = S.currentUser();
+    var m = U.modal({
+      title: 'Edit profile',
+      sub: 'Changes save to this browser instantly.',
+      okText: 'Save changes',
+      body:
+        '<div class="field"><label>Display name</label>' +
+          '<input class="input" id="epName" maxlength="40" value="' + U.esc(u.name) + '"></div>' +
+        '<div class="field"><label>Bio</label>' +
+          '<textarea class="textarea" id="epBio" maxlength="200" placeholder="Tell people what you are into…">' + U.esc(u.bio || '') + '</textarea></div>' +
+        '<div class="field"><label>Avatar</label>' +
+          '<div class="row" style="gap:10px">' +
+            '<div id="epAvatar">' + U.avatar(u, 52) + '</div>' +
+            '<button class="btn btn-ghost btn-sm" type="button" id="epPick">Upload photo</button>' +
+            '<button class="btn btn-ghost btn-sm" type="button" id="epClear">Remove</button>' +
+          '</div>' +
+          '<input type="file" id="epFile" accept="image/*" class="hidden">' +
+        '</div>',
+      onMount: function (back) {
+        var newAvatar = u.avatar || '';
+        back.querySelector('#epPick').addEventListener('click', function () {
+          back.querySelector('#epFile').click();
+        });
+        back.querySelector('#epFile').addEventListener('change', function (e) {
+          var f = e.target.files && e.target.files[0];
+          if (!f) return;
+          U.readImage(f, 320).then(function (data) {
+            newAvatar = data;
+            back.querySelector('#epAvatar').innerHTML = U.avatar({ name: u.name, avatar: data }, 52);
+            U.toast('Photo ready — save to apply');
+          }).catch(function (err) { U.toast(err.message, 'err'); });
+        });
+        back.querySelector('#epClear').addEventListener('click', function () {
+          newAvatar = '';
+          back.querySelector('#epAvatar').innerHTML = U.avatar({ name: u.name, avatar: '' }, 52);
+        });
+        back._getAvatar = function () { return newAvatar; };
+      },
+      onOk: function (back) {
+        var r = S.updateProfile({
+          name: back.querySelector('#epName').value,
+          bio: back.querySelector('#epBio').value,
+          avatar: back._getAvatar ? back._getAvatar() : u.avatar
+        });
+        if (!r.ok) { U.toast(r.error, 'err'); return false; }
+        U.toast('Profile updated');
+        render();
+      }
+    });
+    return m;
+  });
+
+  /* ---------------- settings ---------------- */
+  document.getElementById('settingsBtn').addEventListener('click', function () {
+    U.modal({
+      title: 'Account settings',
+      sub: 'Manage your password or sign out of this browser.',
+      okText: 'Change password',
+      cancelText: 'Close',
+      body:
+        '<div class="field"><label>Current password</label>' +
+          '<input class="input" id="cpOld" type="password" placeholder="••••••••" autocomplete="current-password"></div>' +
+        '<div class="field"><label>New password</label>' +
+          '<input class="input" id="cpNew" type="password" placeholder="At least 6 characters" autocomplete="new-password"></div>' +
+        '<div style="border-top:1px solid var(--line);margin-top:18px;padding-top:16px">' +
+          '<button class="btn btn-danger btn-block" type="button" id="logoutBtn">' +
+            U.icon('logout') + '<span>Log out</span></button>' +
+        '</div>',
+      onMount: function (back, close) {
+        back.querySelector('#logoutBtn').addEventListener('click', function () {
+          close();
+          U.modal({
+            title: 'Log out?',
+            sub: 'You can log back in with your username and password.',
+            okText: 'Log out',
+            danger: true,
+            onOk: function () {
+              S.logout();
+              location.replace('index.html');
+            }
+          });
+        });
+      },
+      onOk: function (back) {
+        var r = S.changePassword(
+          back.querySelector('#cpOld').value,
+          back.querySelector('#cpNew').value
+        );
+        if (!r.ok) { U.toast(r.error, 'err'); return false; }
+        U.toast('Password changed');
+      }
+    });
+  });
+
+  /* ---------------- live ---------------- */
+  S.subscribe(function (reason) {
+    if (reason === 'session') { if (!S.currentUser()) location.replace('index.html'); return; }
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

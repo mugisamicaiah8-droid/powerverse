@@ -1,0 +1,24 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PowerVerse Games</title><script src="https://cdn.tailwindcss.com"></script>
+<style>iframe{width:100%;height:75vh;border:0;border-radius:18px;background:#000}</style></head>
+<body class="bg-[#0a0a0f] text-white p-3 max-w-[800px] mx-auto">
+<h1 class="text-2xl font-black">PowerVerse City - 3 Games</h1>
+<div class="text-[11px] opacity-60">City MAX 16 • Mesh MAX 6 • mugisamicaiah8-droid/powerverse</div>
+<div class="flex gap-2 mt-3 overflow-auto">
+<button onclick="load('matatu')" id="b-matatu" class="bg-[#c9a86a] text-black px-5 py-2 rounded-full font-bold">🃏 Matatu</button>
+<button onclick="load('quiz')" id="b-quiz" class="bg-zinc-800 px-5 py-2 rounded-full">🧠 Quiz</button>
+<button onclick="load('truthordare')" id="b-truthordare" class="bg-zinc-800 px-5 py-2 rounded-full">💋 TOD</button>
+</div>
+<div class="mt-3"><iframe id="frame" src="./games/matatu.html"></iframe></div>
+<div class="mt-2 flex gap-2">
+<button onclick="window.open('https://dashboard.render.com/blueprint/new?repo=https://github.com/mugisamicaiah8-droid/powerverse','_blank')" class="flex-1 bg-white text-black py-2 rounded-full font-bold">Deploy Live Link</button>
+</div>
+<script>
+const files={matatu:"./games/matatu.html",quiz:"./games/quiz.html",truthordare:"./games/truth-or-dare.html"};
+function load(id){
+document.getElementById('frame').src=files[id];
+document.querySelectorAll('button[id^=b-]').forEach(b=>b.className="bg-zinc-800 px-5 py-2 rounded-full");
+document.getElementById('b-'+id).className="bg-[#c9a86a] text-black px-5 py-2 rounded-full font-bold";
+if(window.PV_SYNC){PV_SYNC.broadcastGameChange(id);}}
+</script>
+</body></html>

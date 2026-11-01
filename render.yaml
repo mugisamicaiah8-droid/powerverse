@@ -1,0 +1,25 @@
+# Render Blueprint for the PowerVerse signaling server.
+# Commit this file, then in Render: New -> Blueprint -> pick the repo.
+# Render reads `rootDir` and only builds the server folder.
+
+services:
+  - type: web
+    name: powerverse-signal
+    runtime: node
+    plan: free
+    region: frankfurt
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 20.11.0
+      - key: LOG_LEVEL
+        value: info
+      - key: MAX_CALL_PEERS
+        value: "6"
+      # Replace with your deployed app origin before going live.
+      - key: CORS_ORIGIN
+        value: "*"

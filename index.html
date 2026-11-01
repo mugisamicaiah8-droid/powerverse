@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#08090d">
+<title>PowerVerse — Sign in</title>
+<meta name="description" content="PowerVerse — social feed, synchronized music and video rooms, and games with friends.">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<div class="auth-wrap">
+  <!-- ---------- hero ---------- -->
+  <section class="auth-hero">
+    <div>
+      <div class="brand" style="padding:0 0 40px">
+        <div class="brand-mark">P</div>
+        <div class="brand-name">Power<span>Verse</span></div>
+      </div>
+      <h1>Post it.<br>Play it.<br><em>Together.</em></h1>
+      <p class="lead">A social feed, synchronized music and video rooms, and games — all in one place. Everyone hears the same beat at the same second.</p>
+
+      <div class="hero-feats">
+        <div class="hero-feat">
+          <div class="ic" id="f1"></div>
+          <div><b>Sync rooms</b><span>Share a code, and the whole room plays the same track in lockstep.</span></div>
+        </div>
+        <div class="hero-feat">
+          <div class="ic" id="f2"></div>
+          <div><b>Call while you play</b><span>Video call and screen share float over the room without stopping the music.</span></div>
+        </div>
+        <div class="hero-feat">
+          <div class="ic" id="f3"></div>
+          <div><b>Games with friends</b><span>True or False, Matatu and Quiz — solo against the AI or in a room.</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="tiny muted" style="margin:0">Prototype build · data stays in this browser</p>
+  </section>
+
+  <!-- ---------- form ---------- -->
+  <section class="auth-panel">
+    <div class="auth-card">
+      <div class="auth-tabs" role="tablist">
+        <button class="auth-tab active" data-tab="login" role="tab">Log In</button>
+        <button class="auth-tab" data-tab="signup" role="tab">Sign Up</button>
+      </div>
+
+      <div class="form-error" id="err"></div>
+
+      <!-- login -->
+      <form id="loginForm" autocomplete="on">
+        <div class="field">
+          <label for="li-user">Username</label>
+          <input class="input" id="li-user" name="username" type="text" placeholder="yourname" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label for="li-pass">Password</label>
+          <div style="position:relative">
+            <input class="input" id="li-pass" name="password" type="password" placeholder="••••••••" autocomplete="current-password" required style="padding-right:44px">
+            <button type="button" class="pw-toggle" data-for="li-pass" aria-label="Show password"
+              style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:0;color:#6d788c;cursor:pointer;padding:8px;display:grid;place-items:center"></button>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-block" type="submit" style="margin-top:6px;padding:13px">Log In</button>
+      </form>
+
+      <!-- signup -->
+      <form id="signupForm" class="hidden" autocomplete="on">
+        <div class="field">
+          <label for="su-name">Your name</label>
+          <input class="input" id="su-name" name="name" type="text" placeholder="Amina Nakato" autocomplete="name" required>
+        </div>
+        <div class="field">
+          <label for="su-user">Username</label>
+          <input class="input" id="su-user" name="username" type="text" placeholder="amina" autocomplete="username" required>
+          <div class="tiny muted" style="margin-top:6px">3–20 characters · letters, numbers, dots, underscores</div>
+        </div>
+        <div class="field">
+          <label for="su-pass">Password</label>
+          <div style="position:relative">
+            <input class="input" id="su-pass" name="password" type="password" placeholder="At least 6 characters" autocomplete="new-password" required style="padding-right:44px">
+            <button type="button" class="pw-toggle" data-for="su-pass" aria-label="Show password"
+              style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:0;color:#6d788c;cursor:pointer;padding:8px;display:grid;place-items:center"></button>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-block" type="submit" style="margin-top:6px;padding:13px">Create account</button>
+      </form>
+
+      <div class="demo-hint">
+        <b>Try it instantly</b> — demo account <code>demo</code> / <code>demo1234</code>.
+        Other seeded users: <code>aisha</code>, <code>brian</code>, <code>zara</code> (same password).
+        <button class="btn btn-ghost btn-sm btn-block" id="demoBtn" type="button" style="margin-top:10px">Continue as demo user</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div id="toasts"></div>
+
+<script src="js/store.js"></script>
+<script src="js/ui.js"></script>
+<script>
+(function () {
+  var S = PV.store, U = PV.ui;
+
+  document.getElementById('f1').innerHTML = U.icon('music');
+  document.getElementById('f2').innerHTML = U.icon('phone');
+  document.getElementById('f3').innerHTML = U.icon('game');
+
+  // password visibility toggles
+  document.querySelectorAll('.pw-toggle').forEach(function (btn) {
+    btn.innerHTML = U.icon('eye');
+    btn.addEventListener('click', function () {
+      var input = document.getElementById(btn.dataset.for);
+      var show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      btn.innerHTML = U.icon(show ? 'eyeOff' : 'eye');
+      btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    });
+  });
+
+  // already signed in? go straight through
+  var next = U.qs('next') || 'home.html';
+  if (S.currentUser()) {
+    location.replace(next);
+    return;
+  }
+
+  var errBox = document.getElementById('err');
+  function showErr(msg) {
+    errBox.innerHTML = U.icon('alert') + '<span>' + U.esc(msg) + '</span>';
+    errBox.classList.add('show');
+  }
+  function clearErr() { errBox.classList.remove('show'); }
+
+  // tabs
+  var loginForm = document.getElementById('loginForm');
+  var signupForm = document.getElementById('signupForm');
+  document.querySelectorAll('.auth-tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      document.querySelectorAll('.auth-tab').forEach(function (t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      clearErr();
+      var isLogin = tab.dataset.tab === 'login';
+      loginForm.classList.toggle('hidden', !isLogin);
+      signupForm.classList.toggle('hidden', isLogin);
+    });
+  });
+
+  loginForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    clearErr();
+    var res = S.login(
+      document.getElementById('li-user').value,
+      document.getElementById('li-pass').value
+    );
+    if (!res.ok) { showErr(res.error); return; }
+    U.toast('Welcome back, ' + res.user.name.split(' ')[0] + '!');
+    setTimeout(function () { location.href = next; }, 320);
+  });
+
+  signupForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    clearErr();
+    var res = S.signup(
+      document.getElementById('su-name').value,
+      document.getElementById('su-user').value,
+      document.getElementById('su-pass').value
+    );
+    if (!res.ok) { showErr(res.error); return; }
+    U.toast('Account created — welcome to PowerVerse!');
+    setTimeout(function () { location.href = next; }, 320);
+  });
+
+  // one-click demo entry
+  document.getElementById('demoBtn').addEventListener('click', function () {
+    clearErr();
+    var res = S.login('demo', 'demo1234');
+    if (!res.ok) { showErr(res.error); return; }
+    U.toast('Signed in as Demo User');
+    setTimeout(function () { location.href = next; }, 300);
+  });
+})();
+</script>
+</body>
+</html>

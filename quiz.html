@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quiz Battle - Live Anti-Cheat</title>
+<style>
+:root{--bg:#0b1020;--panel:#151e32;--panel-light:#202c45;--gold:#f4c95d;--green:#4ade80;--red:#fb7185;--text:#f8fafc;--muted:#aab6ca}
+*{box-sizing:border-box;font-family:system-ui,sans-serif}
+body{min-height:100vh;margin:0;padding:16px;display:grid;place-items:center;background:radial-gradient(circle at top left, #26376b 0, transparent 38%), var(--bg);color:var(--text)}
+.app{width:100%;max-width:800px;padding:20px;display:grid;gap:16px;background:#0d1425ee;border:1px solid #ffffff20;border-radius:22px;box-shadow:0 20px 60px #0008}
+header{text-align:center} h1{margin:0;color:var(--gold);font-size:30px} header p{margin:6px 0 0;color:var(--muted);font-size:13px}
+.setup,.scoreboard,.quiz-box{padding:14px;background:var(--panel);border:1px solid #ffffff12;border-radius:14px}
+.setup-grid{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+.setup-grid input{flex:1;min-width:140px;padding:11px;border:1px solid #ffffff2a;border-radius:9px;background:#0b1020;color:var(--text);font-size:15px}
+label{display:block;margin-bottom:6px;color:var(--muted);font-size:12px;font-weight:700}
+button{border:0;border-radius:10px;font:inherit;font-weight:750;cursor:pointer;padding:11px 14px}
+button:disabled{opacity:.45;cursor:not-allowed}
+.add-btn{background:var(--gold);color:#172033}
+.start-btn{background:var(--gold);color:#172033;min-width:120px}
+.restart-btn{background:#34425f;color:#fff}
+.players{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.chip{padding:7px 12px;border-radius:999px;border:1px solid #ffffff25;background:var(--panel-light);color:var(--muted);font-size:13px;display:flex;gap:6px;align-items:center}
+.chip.active{border-color:var(--gold);background:#f4c95d22;color:#fff}
+.chip b{color:var(--gold)}
+.scoreboard{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.score-chip{min-width:90px;padding:10px;border-radius:12px;background:var(--panel-light);text-align:center}
+.score-chip.active{outline:2px solid var(--gold);background:#f4c95d18}
+.score-chip .name{font-size:11px;color:var(--muted);overflow-wrap:anywhere}
+.score-chip .pts{font-size:22px;color:var(--gold);font-weight:850;margin-top:2px}
+.category-tabs{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 8px}
+.tab{flex:0 0 auto;padding:10px 13px;border:1px solid #ffffff20;background:var(--panel);color:var(--muted);font-size:13px}
+.tab.active{border-color:var(--gold);background:#f4c95d1c;color:var(--gold)}
+.category-heading{display:flex;justify-content:space-between;gap:10px;color:var(--muted);font-size:12px}
+.timer-wrap{height:8px;background:#1e2a45;border-radius:999px;overflow:hidden;margin:10px 0}
+.timer-bar{height:100%;width:100%;background:var(--gold);transition:width 1s linear}
+.timer-text{text-align:center;color:var(--gold);font-weight:800;font-size:18px;min-height:24px}
+#question{min-height:70px;margin:8px 0;display:grid;place-items:center;text-align:center;font-size:21px;font-weight:750;line-height:1.3}
+.answers{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.answer{min-height:56px;padding:12px;background:var(--panel-light);color:var(--text);text-align:left;font-size:15px}
+.answer.correct{background:#14532d;outline:2px solid var(--green)}
+.answer.wrong{background:#6b1d2a;outline:2px solid var(--red)}
+#feedback{min-height:22px;margin:10px 0 0;color:var(--muted);text-align:center;font-size:13px}
+.bottom-row{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
+#next-button{min-width:170px;background:var(--gold);color:#172033}
+.small{color:var(--muted);font-size:11px;text-align:center}
+@media(max-width:560px){.answers{grid-template-columns:1fr}.app{padding:14px}}
+</style>
+</head>
+<body>
+<main class="app">
+<header><h1>Quiz Battle Live</h1><p>Unlimited players - 40 sec timer - Questions change every game - Anti-cheat</p></header>
+
+<section class="setup">
+<label>Players (add as many as you want)</label>
+<div class="setup-grid">
+<input id="player-input" maxlength="20" placeholder="Enter player name">
+<button class="add-btn" id="add-player" type="button">Add</button>
+<button class="start-btn" id="start-button" type="button">Start Battle</button>
+</div>
+<div class="players" id="players-list"></div>
+<p class="small">Add at least 2 players. Press Start Battle to begin.</p>
+</section>
+
+<section class="scoreboard" id="scoreboard">No players yet.</section>
+
+<nav class="category-tabs" id="category-tabs"></nav>
+
+<section class="quiz-box">
+<div class="category-heading"><span id="category-label">Category</span><span id="status-label">Press Start</span></div>
+<div class="timer-wrap"><div class="timer-bar" id="timer-bar"></div></div>
+<div class="timer-text" id="timer-text">40s</div>
+<div id="question">Add players and press Start Battle - Questions will be fetched live from server, never same twice.</div>
+<div class="answers" id="answers"></div>
+<p id="feedback">Anti-cheat: Timer 40s - fail if time runs out. Questions from live API.</p>
+</section>
+
+<div class="bottom-row">
+<button id="next-button" type="button" disabled>Next Question (Next Player)</button>
+<button class="restart-btn" id="restart-button" type="button">Reset Scores</button>
+<button class="restart-btn" id="new-fetch" type="button">Fetch New Questions</button>
+</div>
+<p class="small" id="source-note">Source: Open Trivia DB (4000+ questions) + local fallback. Relationships category uses local respectful questions.</p>
+</main>
+
+<script>
+var localBank={
+"Relationships":[
+{q:"What is a healthy way to handle a disagreement?",options:["Listen and explain your feelings respectfully","Shout until other agrees","Ignore forever","Share private messages"],answer:0},
+{q:"What does consent mean?",options:["A clear, freely given agreement","A person staying quiet","Agreement under pressure","Never changeable"],answer:0},
+{q:"A friend tells you something personal. What is respectful choice?",options:["Keep private unless someone may be in danger","Post online","Tell everyone","Use to win argument"],answer:0},
+{q:"What is a good way to set a personal boundary?",options:["Clearly and calmly say what you are comfortable with","Expect people to guess","Agree to everything","Make fun of other's boundary"],answer:0},
+{q:"What is active listening?",options:["Fully focusing and responding to show you understand","Pretending to listen while on phone","Interrupting constantly","Only hearing what you want"],answer:0}
+]
+};
+
+var apiMap={
+"World Affairs":{cat:9, name:"World Affairs - Live"},
+"World Celebrities":{cat:26, name:"Celebrities - Live"},
+"Science & Nature":{cat:17, name:"Science & Nature - Live"},
+"Geography":{cat:22, name:"Geography - Live"},
+"History & Culture":{cat:23, name:"History - Live"},
+"Sports":{cat:21, name:"Sports - Live"},
+"Relationships":{local:true}
+};
+
+var categories=[];for(var k in apiMap){categories.push(k);}
+var players=[];var currentPlayer=0;var activeCategory=categories[0];
+var questions=[];var qIndex=0;var answered=false;var timer=null;var timeLeft=40;var gameStarted=false;
+var currentCorrect=0;
+
+function $(id){return document.getElementById(id);}
+
+function decodeHtml(str){
+var txt=document.createElement("textarea");
+txt.innerHTML=str;
+return txt.value;
+}
+
+function shuffle(items){
+var res=[];for(var i=0;i<items.length;i++){res[i]=items[i];}
+for(var i=res.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var tmp=res[i];res[i]=res[j];res[j]=tmp;}
+return res;
+}
+
+function renderPlayers(){
+var list=$("players-list");while(list.firstChild){list.removeChild(list.firstChild);}
+for(var i=0;i<players.length;i++){
+var chip=document.createElement("span");
+chip.className="chip"+(i===currentPlayer&&gameStarted?" active":"");
+chip.textContent=players[i].name+" ("+players[i].score+")";
+(function(idx){var x=document.createElement("span");x.textContent=" x";x.style.cursor="pointer";x.onclick=function(){removePlayer(idx);};chip.appendChild(x);})(i);
+list.appendChild(chip);
+}
+var board=$("scoreboard");
+while(board.firstChild){board.removeChild(board.firstChild);}
+if(players.length===0){board.textContent="No players yet.";return;}
+for(var i=0;i<players.length;i++){
+var div=document.createElement("div");
+div.className="score-chip"+(i===currentPlayer&&gameStarted?" active":"");
+var nameDiv=document.createElement("div");nameDiv.className="name";nameDiv.textContent=players[i].name;
+var ptsDiv=document.createElement("div");ptsDiv.className="pts";ptsDiv.textContent=players[i].score;
+div.appendChild(nameDiv);div.appendChild(ptsDiv);
+board.appendChild(div);
+}
+}
+
+function addPlayer(){
+var input=$("player-input");var name=input.value.replace(/^\s+|\s+$/g,"");
+if(!name){$("feedback").textContent="Type a name first.";return;}
+for(var i=0;i<players.length;i++){if(players[i].name.toLowerCase()===name.toLowerCase()){$("feedback").textContent="Name already exists.";return;}}
+players.push({name:name,score:0});
+input.value="";$("feedback").textContent=name+" added.";
+renderPlayers();updateButtons();
+}
+
+function removePlayer(idx){
+players.splice(idx,1);
+if(currentPlayer>=players.length){currentPlayer=0;}
+renderPlayers();updateButtons();
+}
+
+function updateButtons(){
+var has=players.length>=2;
+$("start-button").disabled=!has;
+$("next-button").disabled=!gameStarted||!answered;
+}
+
+function renderTabs(){
+var tabs=$("category-tabs");while(tabs.firstChild){tabs.removeChild(tabs.firstChild);}
+for(var c=0;c<categories.length;c++){
+var cat=categories[c];
+var btn=document.createElement("button");btn.type="button";
+btn.className="tab"+(cat===activeCategory?" active":"");
+btn.textContent=cat;
+(function(category){btn.addEventListener("click",function(){activeCategory=category;fetchQuestions();});})(cat);
+tabs.appendChild(btn);
+}
+}
+
+function startTimer(){
+clearInterval(timer);timeLeft=40;
+$("timer-bar").style.width="100%";
+$("timer-bar").style.background="#f4c95d";
+$("timer-text").textContent=timeLeft+"s";
+timer=setInterval(function(){
+timeLeft--;
+var pct=(timeLeft/40)*100;
+$("timer-bar").style.width=pct+"%";
+$("timer-text").textContent=timeLeft+"s";
+if(timeLeft<=10){$("timer-bar").style.background="#fb7185";}
+if(timeLeft<=0){
+clearInterval(timer);
+failByTimeout();
+}
+},1000);
+}
+
+function stopTimer(){clearInterval(timer);}
+
+function failByTimeout(){
+if(answered)return;
+answered=true;
+$("feedback").textContent="Time up! 40 seconds elapsed - no point. Correct was: "+questions[qIndex].options[currentCorrect];
+var btns=$("answers").querySelectorAll(".answer");
+for(var i=0;i<btns.length;i++){btns[i].disabled=true;if(i===currentCorrect){btns[i].className="answer correct";}}
+$("next-button").disabled=false;
+renderPlayers();
+}
+
+function fetchQuestions(){
+$("status-label").textContent="Fetching live questions...";
+$("question").textContent="Loading new questions from server... Anti-cheat active - questions never repeat.";
+$("answers").innerHTML="";
+$("feedback").textContent="Fetching...";
+var map=apiMap[activeCategory];
+if(map.local){
+questions=[];for(var i=0;i<localBank[activeCategory].length;i++){questions.push(localBank[activeCategory][i]);}
+questions=shuffle(questions);
+qIndex=0;
+$("status-label").textContent="Local (5) - Respectful questions";
+if(gameStarted){showQuestion();}
+else{$("question").textContent="Press Start Battle - "+activeCategory+" ready ("+questions.length+" questions)"; }
+return;
+}
+var url="https://opentdb.com/api.php?amount=20&category="+map.cat+"&type=multiple";
+fetch(url).then(function(res){return res.json();}).then(function(data){
+if(!data.results||data.results.length===0){throw new Error("empty");}
+questions=[];
+for(var i=0;i<data.results.length;i++){
+var r=data.results[i];
+var correct=decodeHtml(r.correct_answer);
+var incorrect=[];for(var j=0;j<r.incorrect_answers.length;j++){incorrect.push(decodeHtml(r.incorrect_answers[j]));}
+var all=incorrect.concat([correct]);
+all=shuffle(all);
+var correctIdx=0;for(var k=0;k<all.length;k++){if(all[k]===correct){correctIdx=k;}}
+questions.push({q:decodeHtml(r.question),options:all,answer:correctIdx});
+}
+qIndex=0;
+$("status-label").textContent="Live API - "+questions.length+" new questions - Anti-cheat";
+$("source-note").textContent="Source: Open Trivia DB - Fetched "+questions.length+" fresh questions just now at "+new Date().toLocaleTimeString()+". Next fetch = different questions.";
+if(gameStarted){showQuestion();}
+else{$("question").textContent="Live questions ready! Add players and press Start Battle. Category: "+activeCategory+" ("+questions.length+" new questions fetched just now)";}
+}).catch(function(err){
+$("status-label").textContent="Offline - using fallback";
+questions=[];
+var fallback=[
+{q:"Which country is largest by land area?",options:["China","USA","Russia","Canada"],answer:2},
+{q:"What currency is used by most EU countries?",options:["Euro","Dollar","Pound","Yen"],answer:0},
+{q:"Which organization awards Nobel Peace Prize?",options:["Norwegian Nobel Committee","UN Security Council","Red Cross","World Bank"],answer:0},
+{q:"Where is International Court of Justice located?",options:["Geneva","The Hague","New York","Vienna"],answer:1},
+{q:"What does NATO stand for?",options:["North Atlantic Treaty Organization","Northern African Trade Office","National Association of Transport Operators","North American Tourism Organization"],answer:0}
+];
+for(var i=0;i<fallback.length;i++){questions.push(fallback[i]);}
+questions=shuffle(questions);
+qIndex=0;
+if(gameStarted){showQuestion();}
+});
+}
+
+function showQuestion(){
+if(!gameStarted)return;
+if(qIndex>=questions.length){fetchQuestions();return;}
+var q=questions[qIndex];
+currentCorrect=q.answer;
+$("category-label").textContent=activeCategory;
+$("status-label").textContent="Question "+(qIndex+1)+" of "+questions.length+" - "+players[currentPlayer].name+"'s turn";
+$("question").textContent=q.q;
+var ansDiv=$("answers");while(ansDiv.firstChild){ansDiv.removeChild(ansDiv.firstChild);}
+for(var i=0;i<q.options.length;i++){
+var btn=document.createElement("button");btn.type="button";btn.className="answer";
+btn.textContent=String.fromCharCode(65+i)+". "+q.options[i];
+(function(idx){btn.addEventListener("click",function(){chooseAnswer(idx);});})(i);
+ansDiv.appendChild(btn);
+}
+answered=false;
+$("next-button").disabled=true;
+$("feedback").textContent=players[currentPlayer].name+" - You have 40 seconds! Choose now.";
+renderPlayers();
+startTimer();
+}
+
+function chooseAnswer(idx){
+if(answered)return;
+answered=true;stopTimer();
+var btns=$("answers").querySelectorAll(".answer");
+for(var i=0;i<btns.length;i++){
+btns[i].disabled=true;
+if(i===currentCorrect){btns[i].className="answer correct";}
+if(i===idx&&i!==currentCorrect){btns[i].className="answer wrong";}
+}
+if(idx===currentCorrect){
+players[currentPlayer].score++;
+$("feedback").textContent="Correct! "+players[currentPlayer].name+" gets 1 point! (Answered in "+(40-timeLeft)+"s)";
+}else{
+$("feedback").textContent="Wrong! Correct was: "+questions[qIndex].options[currentCorrect]+". No point.";
+}
+$("next-button").disabled=false;
+renderPlayers();
+}
+
+function nextQuestion(){
+if(!answered)return;
+qIndex++;
+currentPlayer=(currentPlayer+1)%players.length;
+if(qIndex>=questions.length){
+$("feedback").textContent="Fetching new batch of fresh questions...";
+fetchQuestions();
+}else{
+showQuestion();
+}
+}
+
+function startGame(){
+if(players.length<2){$("feedback").textContent="Add at least 2 players!";return;}
+for(var i=0;i<players.length;i++){players[i].score=0;}
+currentPlayer=0;gameStarted=true;qIndex=0;
+renderTabs();
+fetchQuestions();
+setTimeout(function(){if(questions.length>0){showQuestion();}},800);
+updateButtons();
+}
+
+function resetScores(){
+for(var i=0;i<players.length;i++){players[i].score=0;}
+currentPlayer=0;renderPlayers();$("feedback").textContent="Scores reset.";
+if(gameStarted){qIndex=0;showQuestion();}
+}
+
+$("add-player").addEventListener("click",addPlayer);
+$("player-input").addEventListener("keydown",function(e){if(e.key==="Enter"){addPlayer();}});
+$("start-button").addEventListener("click",startGame);
+$("next-button").addEventListener("click",nextQuestion);
+$("restart-button").addEventListener("click",resetScores);
+$("new-fetch").addEventListener("click",fetchQuestions);
+
+renderTabs();fetchQuestions();renderPlayers();updateButtons();
+</script>
+</body>
+</html>

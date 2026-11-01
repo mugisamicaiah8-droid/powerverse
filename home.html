@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#08090d">
+<title>Home — PowerVerse</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<header class="topbar" id="topbar"></header>
+
+<div class="shell">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main">
+    <div class="page-head">
+      <h1>Home</h1>
+      <p>What everyone is posting, playing and syncing right now.</p>
+    </div>
+
+    <div class="home-grid">
+      <!-- ---------- feed column ---------- -->
+      <div>
+        <!-- composer -->
+        <div class="card composer">
+          <div class="composer-top">
+            <div id="composerAvatar"></div>
+            <textarea id="postText" rows="2" placeholder="What's happening? Share a thought or a photo…" maxlength="1000"></textarea>
+          </div>
+
+          <div class="composer-preview hidden" id="preview">
+            <img id="previewImg" alt="Selected photo preview">
+            <button class="rm" id="removeImg" aria-label="Remove photo"></button>
+          </div>
+
+          <div class="composer-actions">
+            <div class="row" style="gap:2px">
+              <button class="icon-btn accent" id="pickPhoto" type="button"></button>
+              <span class="tiny muted" id="charCount" style="margin-left:6px">0/1000</span>
+            </div>
+            <button class="btn btn-primary btn-sm" id="postBtn" type="button" style="padding:9px 20px">Post</button>
+          </div>
+          <input type="file" id="fileInput" accept="image/*" class="hidden">
+        </div>
+
+        <!-- feed -->
+        <div id="feed"></div>
+      </div>
+
+      <!-- ---------- side panel ---------- -->
+      <aside class="side-panel">
+        <div class="card panel">
+          <div class="panel-title">
+            <span>Online now</span>
+            <span class="chip chip-accent" id="onlineCount" style="font-size:10px;padding:3px 8px">0</span>
+          </div>
+          <div id="onlineList"></div>
+        </div>
+
+        <div class="card panel">
+          <div class="panel-title"><span>Live syncs</span></div>
+          <div id="liveSyncs"></div>
+        </div>
+
+        <div class="card panel">
+          <div class="panel-title"><span>Trending</span></div>
+          <div id="trending"></div>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+
+<nav class="bottomnav" id="bottomnav"></nav>
+<div id="toasts"></div>
+
+<script src="js/store.js"></script>
+<script src="js/ui.js"></script>
+<script>
+(function () {
+  var S = PV.store, U = PV.ui;
+  var me = U.requireAuth();
+  if (!me) return;
+
+  U.renderNav('home');
+
+  var pendingImage = '';
+  var openComments = {};
+
+  /* ---------- composer ---------- */
+  document.getElementById('composerAvatar').innerHTML = U.avatar(me, 42);
+  document.getElementById('pickPhoto').innerHTML = U.icon('image') + '<span>Photo</span>';
+  document.getElementById('removeImg').innerHTML = U.icon('x');
+
+  var textEl = document.getElementById('postText');
+  var charEl = document.getElementById('charCount');
+  var preview = document.getElementById('preview');
+  var previewImg = document.getElementById('previewImg');
+  var fileInput = document.getElementById('fileInput');
+
+  textEl.addEventListener('input', function () {
+    charEl.textContent = textEl.value.length + '/1000';
+  });
+
+  document.getElementById('pickPhoto').addEventListener('click', function () { fileInput.click(); });
+
+  fileInput.addEventListener('change', function () {
+    var f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    U.readImage(f, 1100).then(function (dataUrl) {
+      pendingImage = dataUrl;
+      previewImg.src = dataUrl;
+      preview.classList.remove('hidden');
+      U.toast('Photo attached');
+    }).catch(function (err) {
+      U.toast(err.message, 'err');
+    });
+    fileInput.value = '';
+  });
+
+  document.getElementById('removeImg').addEventListener('click', function () {
+    pendingImage = '';
+    preview.classList.add('hidden');
+    previewImg.removeAttribute('src');
+  });
+
+  document.getElementById('postBtn').addEventListener('click', function () {
+    var res = S.createPost({ text: textEl.value, image: pendingImage });
+    if (!res.ok) { U.toast(res.error, 'err'); return; }
+    textEl.value = '';
+    charEl.textContent = '0/1000';
+    pendingImage = '';
+    preview.classList.add('hidden');
+    previewImg.removeAttribute('src');
+    U.toast('Posted to your feed');
+    render();
+  });
+
+  /* ---------- render feed ---------- */
+  function renderPost(p) {
+    var author = S.getUser(p.authorId);
+    var liked = p.likes.indexOf(me.id) >= 0;
+    var shared = p.shares.indexOf(me.id) >= 0;
+    var isMine = p.authorId === me.id;
+
+    // repost of a normal post
+    if (p.repostOf) {
+      var orig = S.getPost(p.repostOf);
+      if (!orig) return '';
+      var oa = S.getUser(orig.authorId);
+      return '<article class="card post">' +
+        '<div class="post-head">' + U.avatar(author, 40, S.isOnline(author)) +
+          '<div class="grow"><div class="name">' + U.esc(author ? author.name : 'Unknown') + '</div>' +
+          '<div class="meta">reposted · ' + U.timeAgo(p.createdAt) + '</div></div></div>' +
+        '<div style="border:1px solid var(--line);border-radius:14px;padding:13px;background:var(--bg-soft)">' +
+          '<div class="row" style="margin-bottom:8px">' + U.avatar(oa, 30) +
+            '<div><div class="small bold">' + U.esc(oa ? oa.name : 'Unknown') + '</div>' +
+            '<div class="tiny muted">' + U.timeAgo(orig.createdAt) + '</div></div></div>' +
+          (orig.text ? '<p class="post-text" style="margin-bottom:8px">' + U.esc(orig.text) + '</p>' : '') +
+          (orig.image ? '<div class="post-img" style="margin-bottom:0"><img src="' + U.esc(orig.image) + '" alt=""></div>' : '') +
+        '</div>' +
+        '<div class="post-actions">' +
+          '<button class="act" data-like="' + orig.id + '">' + U.icon('heart') + '<span>' + orig.likes.length + '</span></button>' +
+          '<button class="act" data-comment="' + orig.id + '">' + U.icon('comment') + '<span>' + orig.comments.length + '</span></button>' +
+        '</div>' +
+      '</article>';
+    }
+
+    // sync repost card
+    if (p.syncRef) {
+      var live = S.getSync(p.syncRef.id);
+      var stillLive = live && !live.ended;
+      return '<article class="card post">' +
+        '<div class="post-head">' + U.avatar(author, 40, S.isOnline(author)) +
+          '<div class="grow"><div class="name">' + U.esc(author ? author.name : 'Unknown') + '</div>' +
+          '<div class="meta">' + U.timeAgo(p.createdAt) + ' · shared a sync</div></div></div>' +
+        '<div class="sync-card">' +
+          '<span class="live">' + (stillLive ? '<span class="pulse"></span>LIVE NOW' : 'ENDED') + '</span>' +
+          '<h4>' + U.esc(p.syncRef.name) + '</h4>' +
+          '<p class="small dim" style="margin:0 0 10px">I\'m live syncing — join with code ' +
+            '<span class="sync-code">' + U.esc(p.syncRef.code) + '</span></p>' +
+          (stillLive
+            ? '<a class="btn btn-primary btn-sm" href="' + (p.syncRef.type === 'music' ? 'music-sync.html' : 'video-sync.html') +
+              '?code=' + encodeURIComponent(p.syncRef.code) + '">Join sync ' + U.icon('arrowRight') + '</a>'
+            : '<span class="chip">This sync has ended</span>') +
+        '</div>' +
+        '<div class="post-actions">' +
+          '<button class="act" data-like="' + p.id + '">' + U.icon('heart') + '<span>' + p.likes.length + '</span></button>' +
+          '<button class="act" data-comment="' + p.id + '">' + U.icon('comment') + '<span>' + p.comments.length + '</span></button>' +
+        '</div>' +
+        '<div class="comments' + (openComments[p.id] ? ' open' : '') + '" data-cbox="' + p.id + '">' +
+          p.comments.map(function (c) {
+            var ca = S.getUser(c.authorId);
+            return '<div class="comment">' + U.avatar(ca, 28) +
+              '<div class="bubble"><b>' + U.esc(ca ? ca.name : 'Unknown') + '</b>' + U.esc(c.text) + '</div></div>';
+          }).join('') +
+          '<form class="comment-form" data-cform="' + p.id + '">' +
+            '<input type="text" placeholder="Write a comment…" maxlength="500" autocomplete="off">' +
+            '<button class="btn btn-primary btn-sm" type="submit">' + U.icon('send') + '</button>' +
+          '</form>' +
+        '</div>' +
+      '</article>';
+    }
+
+    // normal post
+    return '<article class="card post">' +
+      '<div class="post-head">' + U.avatar(author, 40, S.isOnline(author)) +
+        '<div class="grow">' +
+          '<div class="name">' + U.esc(author ? author.name : 'Unknown') +
+            (author && author.id === 'u_aisha' ? U.icon('verified', 'verified') : '') + '</div>' +
+          '<div class="meta">@' + U.esc(author ? author.username : 'unknown') + ' · ' + U.timeAgo(p.createdAt) + '</div>' +
+        '</div>' +
+        (isMine ? '<button class="icon-btn" data-del="' + p.id + '" aria-label="Delete post">' + U.icon('trash') + '</button>' : '') +
+      '</div>' +
+      (p.text ? '<p class="post-text">' + U.esc(p.text) + '</p>' : '') +
+      (p.image ? '<div class="post-img"><img src="' + U.esc(p.image) + '" alt="Post photo" loading="lazy"></div>' : '') +
+      '<div class="post-stats">' +
+        '<span>' + p.likes.length + ' like' + (p.likes.length === 1 ? '' : 's') + '</span>' +
+        '<span>·</span><span>' + p.comments.length + ' comment' + (p.comments.length === 1 ? '' : 's') + '</span>' +
+        (p.shares.length ? '<span>·</span><span>' + p.shares.length + ' share' + (p.shares.length === 1 ? '' : 's') + '</span>' : '') +
+      '</div>' +
+      '<div class="post-actions">' +
+        '<button class="act' + (liked ? ' liked' : '') + '" data-like="' + p.id + '">' + U.icon('heart') +
+          '<span>' + (liked ? 'Liked' : 'Like') + '</span></button>' +
+        '<button class="act" data-comment="' + p.id + '">' + U.icon('comment') + '<span>Comment</span></button>' +
+        '<button class="act' + (shared ? ' shared' : '') + '" data-share="' + p.id + '">' + U.icon('share') +
+          '<span>' + (shared ? 'Shared' : 'Share') + '</span></button>' +
+      '</div>' +
+      '<div class="comments' + (openComments[p.id] ? ' open' : '') + '" data-cbox="' + p.id + '">' +
+        p.comments.map(function (c) {
+          var ca = S.getUser(c.authorId);
+          return '<div class="comment">' + U.avatar(ca, 28) +
+            '<div class="bubble"><b>' + U.esc(ca ? ca.name : 'Unknown') + '</b>' + U.esc(c.text) + '</div></div>';
+        }).join('') +
+        '<form class="comment-form" data-cform="' + p.id + '">' +
+          '<input type="text" placeholder="Write a comment…" maxlength="500" autocomplete="off">' +
+          '<button class="btn btn-primary btn-sm" type="submit">' + U.icon('send') + '</button>' +
+        '</form>' +
+      '</div>' +
+    '</article>';
+  }
+
+  function renderFeed() {
+    var posts = S.feed();
+    var host = document.getElementById('feed');
+    if (!posts.length) {
+      host.innerHTML = '<div class="empty"><div class="ic">' + U.icon('sparkle') + '</div>' +
+        '<h4>Your feed is empty</h4><p>Post something above, or follow people from the “Online now” panel to fill it up.</p></div>';
+      return;
+    }
+    host.innerHTML = posts.map(renderPost).join('');
+  }
+
+  /* ---------- side panels ---------- */
+  function renderOnline() {
+    var users = S.onlineUsers().filter(function (u) { return u.id !== me.id; });
+    document.getElementById('onlineCount').textContent = users.length;
+    var host = document.getElementById('onlineList');
+    if (!users.length) {
+      host.innerHTML = '<p class="tiny muted" style="margin:0">Nobody else is online right now.</p>';
+      return;
+    }
+    host.innerHTML = users.map(function (u) {
+      var following = S.isFollowing(me.id, u.id);
+      return '<div class="member-row">' + U.avatar(u, 36, true) +
+        '<div class="grow"><div class="nm truncate">' + U.esc(u.name) + '</div>' +
+        '<div class="un truncate">@' + U.esc(u.username) + '</div></div>' +
+        '<button class="follow-btn' + (following ? ' following' : '') + '" data-follow="' + u.id + '">' +
+          (following ? 'Following' : 'Follow') + '</button></div>';
+    }).join('');
+  }
+
+  function renderLiveSyncs() {
+    var list = S.activeSyncs();
+    var host = document.getElementById('liveSyncs');
+    if (!list.length) {
+      host.innerHTML = '<p class="tiny muted" style="margin:0 0 10px">No live syncs yet.</p>' +
+        '<a class="btn btn-ghost btn-sm btn-block" href="rooms.html">Start one</a>';
+      return;
+    }
+    host.innerHTML = list.slice(0, 4).map(function (s) {
+      var h = S.getUser(s.hostId);
+      return '<div class="member-row" style="align-items:flex-start">' +
+        '<div class="ic" style="width:32px;height:32px;border-radius:9px;display:grid;place-items:center;flex:0 0 32px;' +
+          'background:' + (s.type === 'music' ? 'var(--brand-soft);color:var(--brand)' : 'var(--accent-soft);color:var(--accent)') + '">' +
+          U.icon(s.type === 'music' ? 'music' : 'video') + '</div>' +
+        '<div class="grow"><div class="nm truncate">' + U.esc(s.name) + '</div>' +
+        '<div class="un">' + U.esc(h ? h.name.split(' ')[0] : '?') + ' · ' + s.members.length + ' in room</div></div>' +
+        '<a class="follow-btn" href="' + (s.type === 'music' ? 'music-sync.html' : 'video-sync.html') +
+          '?code=' + encodeURIComponent(s.code) + '">Join</a></div>';
+    }).join('');
+  }
+
+  function renderTrending() {
+    var items = [
+      { t: '#UgandaMusic', s: '1.2k posts' },
+      { t: 'Friday Film Club', s: 'sync room · live' },
+      { t: '#MatatuNights', s: '840 posts' },
+      { t: 'Amapiano 2026', s: 'Trending in music' }
+    ];
+    document.getElementById('trending').innerHTML = items.map(function (i) {
+      return '<div class="trend"><b>' + U.esc(i.t) + '</b><span>' + U.esc(i.s) + '</span></div>';
+    }).join('');
+  }
+
+  function render() {
+    renderFeed();
+    renderOnline();
+    renderLiveSyncs();
+    renderTrending();
+  }
+
+  /* ---------- delegated events ---------- */
+  document.getElementById('feed').addEventListener('click', function (e) {
+    var likeBtn = e.target.closest('[data-like]');
+    if (likeBtn) {
+      var r = S.toggleLike(likeBtn.dataset.like);
+      if (!r.ok) U.toast(r.error, 'err');
+      else render();
+      return;
+    }
+
+    var cBtn = e.target.closest('[data-comment]');
+    if (cBtn) {
+      var id = cBtn.dataset.comment;
+      openComments[id] = !openComments[id];
+      var box = document.querySelector('[data-cbox="' + id + '"]');
+      if (box) {
+        box.classList.toggle('open', !!openComments[id]);
+        if (openComments[id]) {
+          var inp = box.querySelector('input');
+          if (inp) setTimeout(function () { inp.focus(); }, 40);
+        }
+      }
+      return;
+    }
+
+    var sBtn = e.target.closest('[data-share]');
+    if (sBtn) {
+      var sr = S.sharePost(sBtn.dataset.share);
+      if (!sr.ok) U.toast(sr.error, 'err');
+      else { U.toast('Reposted to your feed'); render(); }
+      return;
+    }
+
+    var dBtn = e.target.closest('[data-del]');
+    if (dBtn) {
+      U.modal({
+        title: 'Delete this post?',
+        sub: 'This cannot be undone.',
+        okText: 'Delete',
+        danger: true,
+        onOk: function () {
+          var dr = S.deletePost(dBtn.dataset.del);
+          if (!dr.ok) U.toast(dr.error, 'err');
+          else { U.toast('Post deleted'); render(); }
+        }
+      });
+    }
+  });
+
+  document.getElementById('feed').addEventListener('submit', function (e) {
+    var form = e.target.closest('[data-cform]');
+    if (!form) return;
+    e.preventDefault();
+    var input = form.querySelector('input');
+    var r = S.addComment(form.dataset.cform, input.value);
+    if (!r.ok) { U.toast(r.error, 'err'); return; }
+    openComments[form.dataset.cform] = true;
+    render();
+  });
+
+  document.getElementById('onlineList').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-follow]');
+    if (!btn) return;
+    var r = S.toggleFollow(btn.dataset.follow);
+    if (!r.ok) { U.toast(r.error, 'err'); return; }
+    U.toast(r.following ? 'Following' : 'Unfollowed');
+    render();
+  });
+
+  /* ---------- live updates ---------- */
+  S.subscribe(function (reason) {
+    if (reason === 'session') { if (!S.currentUser()) location.replace('index.html'); return; }
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

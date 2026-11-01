@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#08090d">
+<title>Rooms — PowerVerse</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<header class="topbar" id="topbar"></header>
+
+<div class="shell">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main">
+    <div class="page-head">
+      <h1>Rooms</h1>
+      <p>Sync music, sync video, or play a game — with everyone in the same moment.</p>
+    </div>
+
+    <div class="rooms-hero">
+      <h2>Everyone in the same second.</h2>
+      <p>Create a room, share the 6-character code, and the whole room plays the same track or video at the same position. Call and screen share float on top without interrupting playback.</p>
+    </div>
+
+    <!-- three modes -->
+    <div class="mode-grid">
+      <a class="mode-card" href="music-sync.html">
+        <div class="ic" id="ic-music"></div>
+        <h3>Music Sync</h3>
+        <p>Shared playlist, one playhead. Host controls the room.</p>
+        <span class="go">Open Music Sync <span id="go1"></span></span>
+      </a>
+      <a class="mode-card video" href="video-sync.html">
+        <div class="ic" id="ic-video"></div>
+        <h3>Video Sync</h3>
+        <p>Watch the same video together, frame for frame.</p>
+        <span class="go">Open Video Sync <span id="go2"></span></span>
+      </a>
+      <a class="mode-card game" href="game-sync.html">
+        <div class="ic" id="ic-game"></div>
+        <h3>Game Sync</h3>
+        <p>True or False, Matatu and Quiz — solo or in a room.</p>
+        <span class="go">Open Game Sync <span id="go3"></span></span>
+      </a>
+    </div>
+
+    <!-- live rooms -->
+    <div class="row-between" style="margin-bottom:14px">
+      <h2 style="margin:0;font-size:18px;letter-spacing:-0.4px">Live right now</h2>
+      <div class="row" style="gap:8px">
+        <span class="chip chip-accent" id="liveCount">0 live</span>
+        <button class="btn btn-ghost btn-sm" id="refreshBtn" type="button">Refresh</button>
+      </div>
+    </div>
+
+    <div class="room-list" id="roomList"></div>
+
+    <!-- join by code -->
+    <div class="card panel" style="margin-top:22px;padding:20px">
+      <div class="panel-title"><span>Have a code?</span></div>
+      <form id="joinForm" class="row" style="gap:10px;flex-wrap:wrap">
+        <input class="input" id="joinCode" placeholder="Enter 6-character code" maxlength="8"
+          style="flex:1 1 200px;text-transform:uppercase;letter-spacing:3px;font-weight:700;font-family:ui-monospace,Menlo,monospace" autocomplete="off">
+        <select class="select" id="joinType" style="flex:0 0 150px">
+          <option value="music">Music Sync</option>
+          <option value="video">Video Sync</option>
+          <option value="game">Game Sync</option>
+        </select>
+        <button class="btn btn-primary" type="submit">Join</button>
+      </form>
+      <p class="tiny muted" style="margin:12px 0 0">Codes are not case-sensitive. Ask the host for theirs.</p>
+    </div>
+  </main>
+</div>
+
+<nav class="bottomnav" id="bottomnav"></nav>
+<div id="toasts"></div>
+
+<script src="js/store.js"></script>
+<script src="js/ui.js"></script>
+<script>
+(function () {
+  var S = PV.store, U = PV.ui;
+  var me = U.requireAuth();
+  if (!me) return;
+
+  U.renderNav('rooms');
+
+  document.getElementById('ic-music').innerHTML = U.icon('music');
+  document.getElementById('ic-video').innerHTML = U.icon('video');
+  document.getElementById('ic-game').innerHTML = U.icon('game');
+  document.getElementById('go1').innerHTML = U.icon('arrowRight');
+  document.getElementById('go2').innerHTML = U.icon('arrowRight');
+  document.getElementById('go3').innerHTML = U.icon('arrowRight');
+
+  function pageFor(type) {
+    if (type === 'music') return 'music-sync.html';
+    if (type === 'video') return 'video-sync.html';
+    return 'game-sync.html';
+  }
+
+  function renderRooms() {
+    var list = S.activeSyncs();
+    document.getElementById('liveCount').textContent = list.length + ' live';
+    var host = document.getElementById('roomList');
+
+    if (!list.length) {
+      host.innerHTML = '<div class="empty"><div class="ic">' + U.icon('rooms') + '</div>' +
+        '<h4>No live rooms yet</h4><p>Be the first — open Music Sync or Video Sync and create one. Your code will show up here for everyone.</p></div>';
+      return;
+    }
+
+    host.innerHTML = list.map(function (s) {
+      var h = S.getUser(s.hostId);
+      var isHost = s.hostId === me.id;
+      var inRoom = s.members.indexOf(me.id) >= 0;
+      var label = s.type === 'music' ? 'Music' : s.type === 'video' ? 'Video' : 'Game';
+      return '<div class="room-row ' + s.type + '">' +
+        '<div class="ic">' + U.icon(s.type === 'music' ? 'music' : s.type === 'video' ? 'video' : 'game') + '</div>' +
+        '<div class="grow">' +
+          '<div class="nm truncate">' + U.esc(s.name) + '</div>' +
+          '<div class="sub">' + label + ' · hosted by ' + U.esc(h ? h.name : 'Unknown') +
+            ' · ' + s.members.length + ' member' + (s.members.length === 1 ? '' : 's') +
+            ' · code <b style="color:var(--accent);font-family:ui-monospace,Menlo,monospace">' + U.esc(s.code) + '</b></div>' +
+        '</div>' +
+        (isHost ? '<span class="chip chip-brand">Host</span>' : '') +
+        '<a class="btn btn-primary btn-sm" href="' + pageFor(s.type) + '?code=' + encodeURIComponent(s.code) + '">' +
+          (inRoom ? 'Rejoin' : 'Join') + '</a>' +
+      '</div>';
+    }).join('');
+  }
+
+  document.getElementById('refreshBtn').addEventListener('click', function () {
+    renderRooms();
+    U.toast('Room list refreshed');
+  });
+
+  document.getElementById('joinForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var code = document.getElementById('joinCode').value.trim().toUpperCase();
+    var type = document.getElementById('joinType').value;
+    if (!code) { U.toast('Enter a code first', 'err'); return; }
+
+    var s = S.getSyncByCode(code);
+    if (!s) { U.toast('No live room with that code', 'err'); return; }
+    if (s.type !== type) {
+      U.toast('That code is a ' + s.type + ' sync — switching you there', 'err');
+    }
+    location.href = pageFor(s.type) + '?code=' + encodeURIComponent(code);
+  });
+
+  S.subscribe(function (reason) {
+    if (reason === 'session') { if (!S.currentUser()) location.replace('index.html'); return; }
+    renderRooms();
+  });
+
+  renderRooms();
+})();
+</script>
+</body>
+</html>

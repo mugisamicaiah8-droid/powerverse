@@ -1,0 +1,253 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Matatu Universal Fixed Penalty</title>
+<style>
+body{background:#02040a;color:#fff;font-family:system-ui,sans-serif;display:grid;place-items:center;padding:10px;margin:0}
+.game{width:100%;max-width:520px;background:#0a0e1a;border:1px solid #c9a86a;border-radius:20px;padding:14px;display:grid;gap:14px}
+h1{color:#c9a86a;text-align:center;margin:0;font-size:22px}.sub{color:#8fa0b5;text-align:center;font-size:11px}
+#status{background:rgba(201,168,106,.12);color:#c9a86a;padding:10px;border-radius:10px;text-align:center;font-weight:bold;font-size:13px;min-height:42px}
+.board{background:rgba(255,255,255,.03);border:1px dashed rgba(255,255,255,.12);border-radius:14px;padding:12px;display:grid;gap:18px}
+.label{color:#8fa0b5;font-size:11px;text-transform:uppercase;letter-spacing:1px}
+.hand.fan{overflow:visible;justify-content:center;align-items:flex-start;min-height:90px;padding:12px 5px 10px 22px;display:flex}
+.ai-fan{width:42px;height:62px;background:linear-gradient(135deg,#1e2d4a,#17233a);border:1px solid rgba(255,255,255,.12);border-radius:5px;flex:0 0 auto;margin-left:-16px;box-shadow:-2px 0 4px rgba(0,0,0,.5);transform-origin:bottom center;position:relative}
+.ai-fan:first-child{margin-left:0}
+.card{width:62px;height:92px;background:#fff;color:#000;border-radius:6px;display:flex;flex-direction:column;justify-content:space-between;padding:5px;font-weight:700;flex:0 0 auto}
+.player-fan{width:60px;height:88px;background:#fff;color:#000;border-radius:6px;display:flex;flex-direction:column;justify-content:space-between;padding:4px;font-weight:700;flex:0 0 auto;margin-left:-18px;box-shadow:-2px 0 5px rgba(0,0,0,.6);transform-origin:bottom center;position:relative;border:2px solid transparent;cursor:pointer}
+.player-fan:first-child{margin-left:0}
+.player-fan.playable{border-color:#c9a86a;transform:translateY(-6px) rotate(var(--rot)) !important;box-shadow:0 6px 12px rgba(201,168,106,.5);z-index:20}
+.player-fan.disabled{opacity:.38}
+.red{color:#e5484d}.mid{text-align:center;font-size:20px}.bot{text-align:right;transform:rotate(180deg)}
+.btns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.btn{padding:11px;border-radius:10px;border:none;background:#c9a86a;color:#000;font-weight:800;cursor:pointer;font-size:12px}
+.btn2{background:#141b2d;color:#fff;border:1px solid #333}
+.btn:disabled{opacity:.3;cursor:not-allowed}
+.suitPick{display:flex;gap:6px;justify-content:center;margin-top:8px}
+.suitPick button{width:40px;height:40px;border-radius:8px;border:1px solid #c9a86a;background:#141b2d;color:#fff;font-size:18px;cursor:pointer}
+.hiddenPts{display:none}
+</style></head><body>
+<div class="game">
+<h1>🃏 MATATU</h1><div class="sub">Universal • Penalty Fixed • Ready for 2P Sync</div>
+<div id="status">Your turn</div>
+<div class="board">
+<div><div class="label">COMP - <span id="aiCount">0</span> CARDS</div><div class="hand fan" id="aiHand"></div><span id="aiPts" class="hiddenPts">0</span></div>
+<div style="display:flex;justify-content:center;gap:18px;align-items:center">
+<div><div class="label">DRAW</div><button class="card" style="background:#17233a;color:#c9a86a;border:2px solid #c9a86a" onclick="doDraw()">🎴 DRAW<br><small id="deckCount" style="font-size:10px;color:#8fa0b5">54</small></button></div>
+<div><div class="label">TOP</div><div id="topCard"></div><div id="suitInfo" style="font-size:11px;color:#8fa0b5;margin-top:4px;text-align:center"></div><div id="acePick" style="display:none"></div></div>
+</div>
+<div><div class="label">YOU - <span id="myCount">0</span> CARDS</div><div class="hand fan" id="myHand"></div><span id="myPts" class="hiddenPts">0</span></div>
+</div>
+<div class="btns">
+<button class="btn" id="cutBtn" onclick="doCut()">✂️ CUT</button>
+<button class="btn2 btn" id="matatuBtn" onclick="doMatatu()">📢 MATATU</button>
+<button class="btn2 btn" onclick="newGame()">↻ NEW</button>
+</div>
+</div>
+<script>
+var deck=[];var player=[];var ai=[];var discard=[];var activeSuit="";var turn="player";var penalty=0;var penaltyRank=null;var gameOver=false;var playerMatatu=false;var aiMatatu=false;var acePending=false;
+var suits=[{name:"spades",sym:"♠",red:false},{name:"hearts",sym:"♥",red:true},{name:"diamonds",sym:"♦",red:true},{name:"clubs",sym:"♣",red:false}];
+function makeDeck(){
+var cards=[];var ranks=["2","3","4","5","6","7","8","9","10","J","Q","K","A"];
+for(var i=0;i<suits.length;i++){for(var j=0;j<ranks.length;j++){cards.push({rank:ranks[j],suit:suits[i],id:ranks[j]+"-"+suits[i].name+"-"+Math.random()});}}
+cards.push({rank:"Joker",suit:{name:"joker_red",sym:"★",red:true,jokerColor:"red"},id:"joker_red",jokerColor:"red"});
+cards.push({rank:"Joker",suit:{name:"joker_black",sym:"★",red:false,jokerColor:"black"},id:"joker_black",jokerColor:"black"});
+return cards;
+}
+function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var tmp=a[i];a[i]=a[j];a[j]=tmp;}return a;}
+function topCard(){return discard[discard.length-1];}
+function cardPoints(c){if(c.rank=="Joker") return 50;if(c.rank=="A") return 15;if(c.rank=="J"||c.rank=="Q"||c.rank=="K") return 10;var n=parseInt(c.rank);if(isNaN(n)) return 0;return n;}
+function handPoints(h){var s=0;for(var i=0;i<h.length;i++) s+=cardPoints(h[i]);return s;}
+function isAttack(c){return c.rank=="2"||c.rank=="3"||c.rank=="Joker";}
+function attackVal(c){if(c.rank=="Joker") return 5;return parseInt(c.rank);}
+function activeIsRed(){return activeSuit=="hearts"||activeSuit=="diamonds";}
+function activeIsBlack(){return activeSuit=="spades"||activeSuit=="clubs";}
+function playable(c){
+if(acePending) return false;
+var t=topCard();if(!t) return true;
+if(penalty>0){
+if(c.rank=="A"&&c.suit.name=="spades") return true;
+if(isAttack(c)&&penaltyRank&&c.rank==penaltyRank){
+if(c.rank=="Joker"){
+if(activeIsRed()&&c.jokerColor!="red") return false;
+if(activeIsBlack()&&c.jokerColor!="black") return false;
+}
+return true;
+}
+if(isAttack(c)&&!penaltyRank){
+if(c.rank=="Joker"){
+if(activeIsRed()&&c.jokerColor!="red") return false;
+if(activeIsBlack()&&c.jokerColor!="black") return false;
+}
+return true;
+}
+return false;
+}
+if(t.rank=="Joker"){
+if(t.jokerColor=="red"){if(c.suit.red===true) return true;}
+if(t.jokerColor=="black"){if(c.suit.red===false&&c.suit.name.indexOf("joker")==-1) return true;}
+if(c.rank=="A") return true;
+if(c.rank=="Joker"){
+if(t.jokerColor=="red"&&c.jokerColor=="red") return true;
+if(t.jokerColor=="black"&&c.jokerColor=="black") return true;
+return false;
+}
+return false;
+}
+if(c.rank=="Joker"){
+if(activeIsRed()&&c.jokerColor!="red") return false;
+if(activeIsBlack()&&c.jokerColor!="black") return false;
+return true;
+}
+if(c.rank=="A") return true;
+if(c.rank==t.rank) return true;
+if(c.suit.name==activeSuit) return true;
+return false;
+}
+function render(){
+document.getElementById("aiCount").innerHTML=ai.length;document.getElementById("myCount").innerHTML=player.length;
+document.getElementById("deckCount").innerHTML=deck.length;
+var aiDiv=document.getElementById("aiHand");aiDiv.innerHTML="";
+var n=ai.length;var maxSpread=70;var perCard=n>1?maxSpread/(n-1):0;var startAngle=-maxSpread/2;
+for(var i=0;i<n;i++){
+var d=document.createElement("div");d.className="ai-fan";
+var angle=startAngle+perCard*i;if(n>12){angle=(i-(n-1)/2)*4.5;}
+var y=Math.abs(angle)*0.35;
+d.style.transform="rotate("+angle+"deg) translateY("+y+"px)";d.style.zIndex=i;d.style.marginLeft=i==0?"0px":"-16px";
+aiDiv.appendChild(d);
+}
+var topDiv=document.getElementById("topCard");topDiv.innerHTML="";var t=topCard();if(t){
+var colClass=t.suit.red?"red":"";var jokerLabel="";if(t.rank=="Joker"){jokerLabel=t.jokerColor=="red"?" RED":" BLACK";colClass=t.jokerColor=="red"?"red":"";}
+topDiv.innerHTML='<div class="card"><div class="'+colClass+'">'+t.rank+' '+t.suit.sym+jokerLabel+'</div><div class="mid '+colClass+'">'+t.suit.sym+'</div><div class="bot '+colClass+'">'+t.rank+' '+t.suit.sym+'</div></div>';
+}
+var info="Active: "+activeSuit;if(penalty>0) info+=" | Must play "+penaltyRank+" or draw "+penalty;document.getElementById("suitInfo").innerHTML=info;
+var myDiv=document.getElementById("myHand");myDiv.innerHTML="";
+var pn=player.length;var pSpread=Math.min(65, pn*6);var pPer=pn>1?pSpread/(pn-1):0;var pStart=-pSpread/2;
+for(var i=0;i<pn;i++){
+var c=player[i];var can=playable(c)&&!acePending&&!gameOver&&turn=="player";
+var btn=document.createElement("button");btn.className="player-fan "+(can?"playable":"disabled");
+var col=c.suit.red?"red":"";var jk="";if(c.rank=="Joker"){jk=c.jokerColor=="red"?" RED":" BLACK";col=c.jokerColor=="red"?"red":"";}
+var angle=pStart+pPer*i;if(pn>10){angle=(i-(pn-1)/2)*5;}
+var y=Math.abs(angle)*0.4;
+btn.style.setProperty("--rot",angle+"deg");
+btn.style.transform="rotate("+angle+"deg) translateY("+y+"px)";
+btn.style.zIndex=i;btn.style.marginLeft=i==0?"0px":"-18px";
+btn.innerHTML='<div class="'+col+'">'+c.rank+' '+c.suit.sym+jk+'</div><div class="mid '+col+'">'+c.suit.sym+'</div><div class="bot '+col+'">'+c.rank+' '+c.suit.sym+'</div>';
+if(can){btn.onclick=(function(idx){return function(){playCard(idx);};})(i);}else{btn.disabled=true;}
+myDiv.appendChild(btn);
+}
+var cutBtn=document.getElementById("cutBtn");var hasSeven=false;var sevenIdx=-1;for(var i=0;i<player.length;i++){if(player[i].rank=="7"&&player[i].suit.name==activeSuit){var pts=handPoints(player)-cardPoints(player[i]);if(pts<=21){hasSeven=true;sevenIdx=i;break;}}}
+cutBtn.disabled=!(hasSeven&&!gameOver&&turn=="player"&&penalty==0&&!acePending);cutBtn.setAttribute("data-idx",sevenIdx);
+var matBtn=document.getElementById("matatuBtn");matBtn.disabled=!(player.length==2&&!playerMatatu&&!gameOver&&turn=="player");
+}
+function newGame(){
+deck=shuffle(makeDeck());player=[];ai=[];discard=[];penalty=0;penaltyRank=null;gameOver=false;playerMatatu=false;aiMatatu=false;acePending=false;turn="player";
+for(var i=0;i<7;i++){player.push(deck.pop());ai.push(deck.pop());}
+var starterIdx=-1;for(var i=0;i<deck.length;i++){var r=deck[i].rank;if(r!="2"&&r!="3"&&r!="7"&&r!="8"&&r!="J"&&r!="Joker"&&r!="A"){starterIdx=i;break;}}if(starterIdx==-1) starterIdx=0;
+var starter=deck.splice(starterIdx,1)[0];discard.push(starter);activeSuit=starter.suit.name;if(starter.rank=="Joker"){activeSuit=starter.jokerColor=="red"?"hearts":"spades";}
+document.getElementById("status").innerHTML="Your turn";render();
+}
+function drawOne(hand){if(deck.length==0){if(discard.length>1){var keep=discard.pop();deck=shuffle(discard);discard=[keep];}}if(deck.length>0){hand.push(deck.pop());return true;}return false;}
+function drawMany(hand,n){var c=0;while(c<n&&drawOne(hand)) c++;return c;}
+function showAcePicker(callback){
+acePending=true;var div=document.getElementById("acePick");div.style.display="block";div.innerHTML='<div class="label">Choose suit:</div><div class="suitPick"><button onclick="pickSuit(\'spades\')">♠</button><button onclick="pickSuit(\'hearts\')">♥</button><button onclick="pickSuit(\'diamonds\')">♦</button><button onclick="pickSuit(\'clubs\')">♣</button></div>';
+window.pickSuit=function(s){activeSuit=s;acePending=false;div.style.display="none";div.innerHTML="";callback(s);};
+}
+function playCard(index){
+if(gameOver||turn!="player"||acePending) return;
+var card=player[index];if(!playable(card)) return;
+if(player.length==2&&!playerMatatu){var pen=drawMany(player,2);document.getElementById("status").innerHTML="Forgot MATATU! Draw 2";render();return;}
+player.splice(index,1);discard.push(card);
+if(card.rank=="A"){
+if(card.suit.name=="spades"&&penalty>0){penalty=0;penaltyRank=null;document.getElementById("status").innerHTML="Ace Spades cancels! Your turn again";activeSuit="spades";render();return;}
+else{
+showAcePicker(function(suit){
+if(checkWin("player")) return;
+turn="ai";document.getElementById("status").innerHTML="Computer turn";render();setTimeout(aiPlay,700);
+});
+render();return;
+}
+}else{
+if(card.rank=="Joker"){activeSuit=card.jokerColor=="red"?"hearts":"spades";}else{activeSuit=card.suit.name;}
+}
+if(isAttack(card)){
+penalty+=attackVal(card);penaltyRank=card.rank;
+document.getElementById("status").innerHTML="You played "+card.rank+"! Comp must stack or draw "+penalty;
+if(checkWin("player")) return;
+turn="ai";render();setTimeout(aiPlay,700);return;
+}
+else if(card.rank=="8"||card.rank=="J"){
+document.getElementById("status").innerHTML=card.rank+" skip - your turn again";
+render();return;
+}
+playerMatatu=false;
+if(checkWin("player")) return;
+turn="ai";document.getElementById("status").innerHTML="Computer turn";render();setTimeout(aiPlay,700);
+}
+function checkWin(who){var hand=who=="player"?player:ai;if(hand.length==0){gameOver=true;document.getElementById("status").innerHTML=who=="player"?"You win":"Computer wins";render();return true;}return false;}
+function doDraw(){
+if(gameOver||turn!="player"||acePending) return;
+if(penalty>0){
+var c=drawMany(player,penalty);
+document.getElementById("status").innerHTML="You drew "+c+" penalty";
+penalty=0;penaltyRank=null;turn="ai";render();setTimeout(aiPlay,700);return;
+}
+if(!drawOne(player)){document.getElementById("status").innerHTML="No cards";turn="ai";render();setTimeout(aiPlay,700);return;}
+var drawn=player[player.length-1];
+if(playable(drawn)){document.getElementById("status").innerHTML="Drew "+drawn.rank+" - playable";render();}else{document.getElementById("status").innerHTML="Drew "+drawn.rank+" - turn ends";turn="ai";render();setTimeout(aiPlay,700);}
+}
+function doMatatu(){if(player.length!=2||playerMatatu) return;playerMatatu=true;document.getElementById("status").innerHTML="MATATU!";render();}
+function doCut(){
+var btn=document.getElementById("cutBtn");var idx=parseInt(btn.getAttribute("data-idx"));if(isNaN(idx)||idx<0) return;
+var card=player[idx];var remainingPts=handPoints(player)-cardPoints(card);var aiPts=handPoints(ai);
+player.splice(idx,1);discard.push(card);gameOver=true;var myP=remainingPts;
+var msg="";if(myP<aiPts){msg="You CUT WIN! You "+myP+" - Comp "+aiPts;}else if(myP>aiPts){msg="You CUT LOST! You "+myP+" - Comp "+aiPts;}else{msg="Cut tie "+myP;}
+document.getElementById("status").innerHTML=msg;render();
+}
+function aiPlay(){
+if(gameOver||acePending) return;
+if(penalty>0){
+var idx=-1;for(var i=0;i<ai.length;i++){var c=ai[i];if(c.rank==penaltyRank||(c.rank=="A"&&c.suit.name=="spades")){if(c.rank=="Joker"){if(activeIsRed()&&c.jokerColor!="red") continue;if(activeIsBlack()&&c.jokerColor!="black") continue;}idx=i;break;}}
+if(idx>=0){
+var card=ai.splice(idx,1)[0];discard.push(card);
+if(card.rank=="A"&&card.suit.name=="spades"){
+penalty=0;penaltyRank=null;document.getElementById("status").innerHTML="Comp cancels with Ace Spades! Your turn";
+activeSuit="spades";turn="player";render();return;
+}else{
+if(card.suit.name.indexOf("joker")==-1) activeSuit=card.suit.name;else activeSuit=card.jokerColor=="red"?"hearts":"spades";
+penalty+=attackVal(card);penaltyRank=card.rank;
+document.getElementById("status").innerHTML="Comp stacked "+card.rank+"! You must stack or draw "+penalty;
+turn="player";render();return;
+}
+}else{
+var c=drawMany(ai,penalty);
+document.getElementById("status").innerHTML="Comp drew "+c+" penalty! Your turn";
+penalty=0;penaltyRank=null;turn="player";render();return;
+}
+}
+var idx=-1;for(var i=0;i<ai.length;i++){var c=ai[i];if(playable(c)&&!isAttack(c)&&c.rank!="8"&&c.rank!="J"&&c.rank!="7"&&c.rank!="A"){idx=i;break;}}
+if(idx<0){for(var i=0;i<ai.length;i++){if(playable(ai[i])){idx=i;break;}}}
+if(idx>=0){
+var card=ai[idx];
+if(ai.length==2&&!aiMatatu){var pen=drawMany(ai,2);document.getElementById("status").innerHTML="Comp forgot MATATU! Drew 2";aiMatatu=false;turn="player";render();return;}
+ai.splice(idx,1);discard.push(card);
+if(card.rank=="A"){
+var best=suits[0].name;var max=0;for(var s=0;s<suits.length;s++){var cnt=0;for(var k=0;k<ai.length;k++){if(ai[k].suit.name==suits[s].name) cnt++;}if(cnt>max){max=cnt;best=suits[s].name;}}activeSuit=best;
+if(checkWin("ai")) return;
+turn="player";document.getElementById("status").innerHTML="Your turn";render();return;
+}else{if(card.suit.name.indexOf("joker")==-1){activeSuit=card.suit.name;}else{activeSuit=card.jokerColor=="red"?"hearts":"spades";}}
+if(isAttack(card)){
+penalty+=attackVal(card);penaltyRank=card.rank;
+document.getElementById("status").innerHTML="Comp played "+card.rank+"! You must stack or draw "+penalty;
+if(checkWin("ai")) return;
+turn="player";render();return;
+}
+if(card.rank=="8"||card.rank=="J"){
+document.getElementById("status").innerHTML="Comp played "+card.rank+" skip - Comp again";
+render();setTimeout(aiPlay,800);return;
+}
+aiMatatu=false;if(checkWin("ai")) return;
+turn="player";document.getElementById("status").innerHTML="Your turn";render();return;
+}
+if(!drawOne(ai)){document.getElementById("status").innerHTML="Your turn";turn="player";render();return;}
+var drawn=ai[ai.length-1];if(playable(drawn)){document.getElementById("status").innerHTML="Comp drew playable";setTimeout(aiPlay,600);}else{document.getElementById("status").innerHTML="Your turn";turn="player";render();}
+}
+newGame();
+</script>
+</body></html>

@@ -1,0 +1,27 @@
+{
+  "name": "powerverse-signaling",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WebRTC signaling server for PowerVerse sync rooms - relays SDP offers/answers and ICE candidates so browsers can build peer-to-peer audio, video and screen-share connections. Never touches media.",
+  "main": "server.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node test/protocol.test.js"
+  },
+  "keywords": [
+    "webrtc",
+    "signaling",
+    "socket.io",
+    "powerverse"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "socket.io": "^4.7.5",
+    "socket.io-client": "^4.7.5"
+  }
+}

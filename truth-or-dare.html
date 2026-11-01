@@ -1,0 +1,46 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Truth or Dare</title>
+<style>
+:root{--bg:#111827;--panel:#1f2937;--pink:#f472b6;--purple:#a78bfa;--text:#f9fafb;--muted:#cbd5e1}
+*{box-sizing:border-box;font-family:system-ui,sans-serif}
+body{min-height:100vh;margin:0;padding:16px;display:grid;place-items:center;background:radial-gradient(circle at top, #312e81, #111827 60%);color:var(--text)}
+.game{width:100%;max-width:560px;padding:22px;display:grid;gap:18px;background:#111827ee;border:1px solid #ffffff20;border-radius:22px;box-shadow:0 20px 60px #0008}
+header{text-align:center} h1{margin:0;color:var(--pink);font-size:32px} header p,.small{color:var(--muted);font-size:13px}
+.panel{padding:16px;background:var(--panel);border-radius:14px}
+label,.section-title{display:block;margin-bottom:8px;color:var(--muted);font-size:13px;font-weight:700}
+input{width:100%;padding:11px;border:1px solid #ffffff30;border-radius:9px;outline:none;background:#111827;color:var(--text);font-size:16px}
+button{padding:11px 14px;border:0;border-radius:10px;background:var(--purple);color:#171324;font-size:14px;font-weight:800;cursor:pointer}
+button:disabled{opacity:.45}
+.add-row,.choice-row,.action-row{display:flex;gap:9px}
+.players{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.player-chip{padding:7px 10px;border:1px solid #ffffff25;border-radius:999px;color:var(--muted);font-size:13px}
+.player-chip.current{border-color:var(--pink);background:#f472b622;color:#fff}
+#prompt{min-height:110px;display:grid;place-items:center;padding:18px;border:1px solid #ffffff20;border-radius:14px;background:#0b1020;text-align:center;font-size:22px}
+.choice-row button{flex:1;min-height:56px;color:#fff;font-size:17px}
+#truth-button{background:#2563eb} #dare-button{background:#db2777}
+#next-button{background:var(--pink)} #skip-button{background:#475569;color:#fff} #reset-button{background:#374151;color:#fff}
+.message{min-height:20px;color:#fde68a;text-align:center;font-size:13px}
+</style>
+</head><body><main class="game">
+<header><h1>Truth or Dare</h1><p>Add your players, then choose a challenge!</p></header>
+<section class="panel"><label>Players</label><div class="add-row"><input id="player-name" type="text" placeholder="Enter a player name"><button id="add-player">Add player</button></div><div class="players" id="players-list"></div><p class="small">Add at least two players to begin.</p></section>
+<p id="turn-label">Add players to start.</p>
+<section class="panel"><div id="prompt">Choose Truth or Dare to get a prompt.</div><div class="choice-row" style="margin-top:12px"><button id="truth-button" disabled>Truth</button><button id="dare-button" disabled>Dare</button></div></section>
+<div class="action-row"><button id="next-button" disabled>Done - next turn</button><button id="skip-button" disabled>Skip prompt</button></div>
+<p class="message" id="message"></p>
+<section class="panel"><div class="section-title">Scoreboard</div><div id="scoreboard" class="small">No players yet.</div></section>
+<button id="reset-button">Reset game</button>
+</main>
+<script>
+var truths=["What is something you are proud of learning?","What always makes you laugh?","If you could become excellent at one skill, what would you choose?","What is your favorite way to spend a relaxing day?","What is a kind thing someone did for you that you remember?","Which fictional place would you like to visit?","What song can you listen to again and again?","What is one small goal you have for this week?","What food would you happily eat more often?","What is something you appreciate about this group?","If you could invent a holiday, what would it celebrate?","What animal would make the funniest teacher?","What is a movie or book you would recommend?","What is one thing you would like to try someday?","What made you smile recently?","Would you rather explore space or deep ocean? Why?","What would your dream treehouse include?","What is a useful thing you know how to do?","If you could meet any cartoon character, who would it be?","What is your favorite game to play with friends?"];
+var dares=["Do your best robot dance for 10 seconds.","Speak like a news reporter until your next turn.","Make up a silly two-line song about a shoe.","Pretend to be a cat stretching after a nap.","Give a dramatic thank-you speech to an imaginary award.","Balance a soft object on your head for five seconds.","Do your best impression of a friendly alien.","Describe your favorite snack like a food critic.","Make three different animal sounds; the group guesses them.","Say a tongue twister three times slowly.","Invent a new handshake in the air - no touching needed.","Mime brushing your teeth while riding a tiny bicycle.","Tell a one-sentence story using the words banana and moon.","Do a slow-motion celebration.","Pretend to conduct an orchestra for 15 seconds.","Make up a superhero name and describe your harmless superpower.","Say the alphabet in a cheerful announcer voice.","Do your best impression of a penguin walking.","Name five things that are your favorite color in 10 seconds.","Make a funny face, if you feel comfortable."];
+var players=[];var currentPlayer=0;var promptReady=false;var truthDeck=[];var dareDeck=[];
+function $(id){return document.getElementById(id);}
+function shuffledCopy(items){var copy=[];for(var i=0;i<items.length;i++){copy[i]=items[i];}for(var i=copy.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var tmp=copy[i];copy[i]=copy[j];copy[j]=tmp;}return copy;}
+function drawPrompt(type){var deck=type==="truth"?truthDeck:dareDeck;var source=type==="truth"?truths:dares;if(deck.length===0){if(type==="truth"){truthDeck=shuffledCopy(truths);deck=truthDeck;}else{dareDeck=shuffledCopy(dares);deck=dareDeck;}}return deck.pop();}
+function updateScreen(){var hasPlayers=players.length>=2;$("truth-button").disabled=!hasPlayers||promptReady;$("dare-button").disabled=!hasPlayers||promptReady;$("next-button").disabled=!hasPlayers||!promptReady;$("skip-button").disabled=!hasPlayers||!promptReady;if(players.length===0){$("turn-label").textContent="Add players to start.";}else if(!hasPlayers){$("turn-label").textContent="Add one more player to begin.";}else{$("turn-label").textContent=players[currentPlayer].name+"'s turn";}var list=$("players-list");while(list.firstChild){list.removeChild(list.firstChild);}for(var i=0;i<players.length;i++){var chip=document.createElement("span");chip.className="player-chip"+(i===currentPlayer&&hasPlayers?" current":"");chip.textContent=players[i].name+" - "+players[i].score;list.appendChild(chip);}if(players.length===0){$("scoreboard").textContent="No players yet.";}else{var txt="";for(var i=0;i<players.length;i++){if(i>0)txt+="  |  ";var p=players[i];txt+=p.name+": "+p.score+" point"+(p.score===1?"":"s");}$("scoreboard").textContent=txt;}}
+function addPlayer(){var input=$("player-name");var name=input.value.replace(/^\s+|\s+$/g,"");if(!name){$("message").textContent="Type a name first.";input.focus();return;}for(var i=0;i<players.length;i++){if(players[i].name.toLowerCase()===name.toLowerCase()){$("message").textContent="That name is already in the game.";input.focus();return;}}players.push({name:name,score:0});input.value="";$("message").textContent="";updateScreen();input.focus();}
+function choosePrompt(type){if(players.length<2||promptReady)return;$("prompt").textContent=drawPrompt(type);$("message").textContent=(type==="truth"?"Truth":"Dare")+" chosen.";promptReady=true;updateScreen();}
+function finishTurn(earnedPoint){if(!promptReady||players.length<2)return;if(earnedPoint){players[currentPlayer].score+=1;$("message").textContent="Point earned! Nice job.";}else{$("message").textContent="Prompt skipped - no point lost.";}currentPlayer=(currentPlayer+1)%players.length;promptReady=false;$("prompt").textContent="Choose Truth or Dare to get a prompt.";updateScreen();}
+function resetGame(){players=[];currentPlayer=0;promptReady=false;truthDeck=[];dareDeck=[];$("prompt").textContent="Choose Truth or Dare to get a prompt.";$("message").textContent="Game reset.";$("player-name").value="";updateScreen();}
+$("add-player").addEventListener("click",addPlayer);$("player-name").addEventListener("keydown",function(e){if(e.key==="Enter")addPlayer();});$("truth-button").addEventListener("click",function(){choosePrompt("truth");});$("dare-button").addEventListener("click",function(){choosePrompt("dare");});$("next-button").addEventListener("click",function(){finishTurn(true);});$("skip-button").addEventListener("click",function(){finishTurn(false);});$("reset-button").addEventListener("click",resetGame);updateScreen();
+</script></body></html>
